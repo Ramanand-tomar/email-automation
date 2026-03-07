@@ -32,7 +32,7 @@ const authController = {
             const user = await handleCallback(code);
 
             // Use state parameter (returnUrl) if provided, otherwise fallback to default
-            const baseUrl = returnUrl || 'http://localhost:3000/ivfindia.com/email';
+            const baseUrl = returnUrl || `${process.env.FRONTEND_URL}/ivfindia.com/email`;
 
             // Append googleId to the redirect URL
             const finalRedirectUrl = new URL(baseUrl);
