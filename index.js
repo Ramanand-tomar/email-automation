@@ -9,6 +9,20 @@ const gmailRoutes = require('./src/routes/gmailRoutes');
 const aiRoutes = require('./src/routes/aiRoutes');
 
 const app = express();
+const http = require('http');
+const { Server } = require('socket.io');
+const socketService = require('./src/services/socketService');
+
+const server = http.createServer(app);
+const io = new Server(server, {
+    cors: {
+        origin: process.env.FRONTEND_URL || '*',
+        methods: ['GET', 'POST']
+    }
+});
+
+// Initialize socket service
+socketService.init(io);
 
 // Middleware
 app.use(cors());
@@ -30,6 +44,6 @@ app.get('/health', (req, res) => {
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
+server.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });

@@ -22,6 +22,14 @@ const userSchema = new mongoose.Schema({
     refreshToken: {
         type: String,
         required: true
+    },
+    lastHistoryId: {
+        type: String,
+        default: null
+    },
+    watchExpiration: {
+        type: Date,
+        default: null
     }
 }, {
     timestamps: true

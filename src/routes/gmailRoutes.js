@@ -10,4 +10,8 @@ router.post('/send', gmailController.sendEmail);
 router.post('/modify/:id', gmailController.modifyEmail);
 router.delete('/emails/:id', gmailController.deleteEmail);
 
+// Real-time sync routes
+router.post('/watch', gmailController.watchInbox);
+router.post('/webhook', gmailController.handleWebhook);
+
 module.exports = router;

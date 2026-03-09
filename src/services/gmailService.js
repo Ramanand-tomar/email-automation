@@ -363,6 +363,88 @@ const parseEmailDetails = (data) => {
     };
 };
 
+/**
+ * Start watching the user's inbox for changes using Google Pub/Sub
+ */
+const watchInbox = async (googleId) => {
+    try {
+        const gmail = await getGmailClient(googleId);
+        const user = await User.findOne({ googleId });
+
+        const response = await gmail.users.watch({
+            userId: 'me',
+            requestBody: {
+                labelIds: ['INBOX'],
+                topicName: process.env.GOOGLE_PUBSUB_TOPIC
+            }
+        });
+
+        const { historyId, expiration } = response.data;
+
+        // Save historyId to start syncing from here next time
+        user.lastHistoryId = historyId;
+        user.watchExpiration = new Date(parseInt(expiration));
+        await user.save();
+
+        return response.data;
+    } catch (error) {
+        console.error('Error starting Gmail watch:', error);
+        throw error;
+    }
+};
+
+/**
+ * Fetch incremental changes using history.list API
+ */
+const syncUserEmails = async (googleId) => {
+    try {
+        const gmail = await getGmailClient(googleId);
+        const user = await User.findOne({ googleId });
+
+        if (!user.lastHistoryId) {
+            // If no historyId, we can't do incremental sync. 
+            // Just return or trigger a full fetch.
+            return { changes: [] };
+        }
+
+        const response = await gmail.users.history.list({
+            userId: 'me',
+            startHistoryId: user.lastHistoryId,
+            historyTypes: ['messageAdded', 'labelAdded', 'labelRemoved']
+        });
+
+        const history = response.data.history || [];
+        const newHistoryId = response.data.historyId;
+
+        // Collect all message IDs that were added
+        const messageIds = [];
+        history.forEach(record => {
+            if (record.messagesAdded) {
+                record.messagesAdded.forEach(ma => messageIds.push(ma.message.id));
+            }
+        });
+
+        // Fetch full details for new messages
+        const newEmails = await Promise.all(
+            [...new Set(messageIds)].map(id => getEmailById(googleId, id).catch(() => null))
+        );
+
+        // Update user's historyId for next sync
+        if (newHistoryId) {
+            user.lastHistoryId = newHistoryId;
+            await user.save();
+        }
+
+        return {
+            newEmails: newEmails.filter(e => e !== null),
+            history
+        };
+    } catch (error) {
+        console.error('Error syncing emails via history:', error);
+        throw error;
+    }
+};
+
 module.exports = {
     getEmails,
     getEmailById,
@@ -370,5 +452,7 @@ module.exports = {
     sendEmail,
     modifyEmail,
     deleteEmail,
-    replyToEmail
+    replyToEmail,
+    watchInbox,
+    syncUserEmails
 };

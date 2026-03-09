@@ -1,5 +1,6 @@
-const { getEmails, getEmailById, getThreadById, sendEmail, modifyEmail, deleteEmail, replyToEmail } = require('../services/gmailService');
+const { getEmails, getEmailById, getThreadById, sendEmail, modifyEmail, deleteEmail, replyToEmail, watchInbox, syncUserEmails } = require('../services/gmailService');
 const User = require('../models/User');
+const socketService = require('../services/socketService');
 
 const gmailController = {
     /**
@@ -174,6 +175,70 @@ const gmailController = {
         } catch (error) {
             console.error('Error in replyToEmail controller:', error);
             res.status(500).json({ error: 'Failed to send reply' });
+        }
+    },
+
+    /**
+     * POST /api/gmail/watch
+     * Initiate Gmail watch for a user
+     */
+    watchInbox: async (req, res) => {
+        const googleId = req.headers['x-google-id'] || req.body.googleId || req.query.googleId;
+
+        if (!googleId) {
+            return res.status(401).json({ error: 'Unauthorized: Missing googleId' });
+        }
+
+        try {
+            const result = await watchInbox(googleId);
+            res.status(200).json({ success: true, ...result });
+        } catch (error) {
+            console.error('Error in watchInbox controller:', error);
+            res.status(500).json({ error: 'Failed to start watching inbox' });
+        }
+    },
+
+    /**
+     * POST /api/gmail/webhook
+     * Handle incoming Google Pub/Sub notifications
+     */
+    handleWebhook: async (req, res) => {
+        try {
+            // Google Pub/Sub sends data in req.body.message.data (base64 encoded)
+            const message = req.body.message;
+            if (!message || !message.data) {
+                return res.status(400).send('Invalid Pub/Sub message');
+            }
+
+            const data = JSON.parse(Buffer.from(message.data, 'base64').toString());
+            const { emailAddress, historyId } = data;
+
+            console.log(`Received Gmail notification for ${emailAddress}, historyId: ${historyId}`);
+
+            // Find user by email
+            const user = await User.findOne({ email: emailAddress });
+            if (!user) {
+                console.error(`User not found for email: ${emailAddress}`);
+                return res.status(204).send(); // Acknowledge but do nothing
+            }
+
+            // Trigger incremental sync
+            const syncResult = await syncUserEmails(user.googleId);
+
+            // Notify frontend via WebSockets if there are new emails
+            if (syncResult.newEmails && syncResult.newEmails.length > 0) {
+                socketService.notifyUser(user.googleId, 'new_emails', {
+                    count: syncResult.newEmails.length,
+                    latestEmails: syncResult.newEmails
+                });
+            }
+
+            // Always acknowledge Pub/Sub notifications
+            res.status(204).send();
+        } catch (error) {
+            console.error('Error in handleWebhook:', error);
+            // Still return 204 to avoid infinite retries from Pub/Sub
+            res.status(204).send();
         }
     }
 };
