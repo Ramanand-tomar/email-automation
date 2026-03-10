@@ -210,15 +210,22 @@ const gmailController = {
                 return res.status(400).send('Invalid Pub/Sub message');
             }
 
-            const data = JSON.parse(Buffer.from(message.data, 'base64').toString());
+            let data;
+            try {
+                data = JSON.parse(Buffer.from(message.data, 'base64').toString());
+            } catch (parseError) {
+                console.error(`🔴 Webhook Error: Failed to parse data from Pub/Sub message. Decoded data: "${Buffer.from(message.data, 'base64').toString()}". Error: ${parseError.message}`);
+                return res.status(204).send(); // Acknowledge to stop retries
+            }
+
             const { emailAddress, historyId } = data;
 
             console.log(`Received Gmail notification for ${emailAddress}, historyId: ${historyId}`);
 
             // Find user by email
-            const user = await User.findOne({ email: emailAddress });
+            const user = await User.findOne({ email: emailAddress.toLowerCase() });
             if (!user) {
-                console.error(`User not found for email: ${emailAddress}`);
+                console.error(`🔴 Webhook Error: User not found for email: ${emailAddress}. Checked DB for exact match.`);
                 return res.status(204).send(); // Acknowledge but do nothing
             }
 

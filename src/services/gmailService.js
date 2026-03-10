@@ -1,5 +1,6 @@
 const { google } = require('googleapis');
 const { getAuthenticatedClient } = require('./googleAuthService');
+const User = require('../models/User');
 
 /**
  * Helper to get Gmail instance
@@ -371,6 +372,7 @@ const watchInbox = async (googleId) => {
         const gmail = await getGmailClient(googleId);
         const user = await User.findOne({ googleId });
 
+        console.log(`Starting watch for user ${user.email} on topic ${process.env.GOOGLE_PUBSUB_TOPIC}`);
         const response = await gmail.users.watch({
             userId: 'me',
             requestBody: {
@@ -378,6 +380,7 @@ const watchInbox = async (googleId) => {
                 topicName: process.env.GOOGLE_PUBSUB_TOPIC
             }
         });
+        console.log(`Watch successful for ${user.email}:`, response.data);
 
         const { historyId, expiration } = response.data;
 
@@ -402,16 +405,49 @@ const syncUserEmails = async (googleId) => {
         const user = await User.findOne({ googleId });
 
         if (!user.lastHistoryId) {
-            // If no historyId, we can't do incremental sync. 
-            // Just return or trigger a full fetch.
-            return { changes: [] };
+            console.log(`No historyId for user ${user.email}, performing initial fetch to get current historyId`);
+            // If no historyId, get the current state
+            const profile = await gmail.users.getProfile({ userId: 'me' });
+            user.lastHistoryId = profile.data.historyId;
+            await user.save();
+            return { newEmails: [] };
         }
 
-        const response = await gmail.users.history.list({
-            userId: 'me',
-            startHistoryId: user.lastHistoryId,
-            historyTypes: ['messageAdded', 'labelAdded', 'labelRemoved']
-        });
+        let response;
+        try {
+            response = await gmail.users.history.list({
+                userId: 'me',
+                startHistoryId: user.lastHistoryId,
+                historyTypes: ['messageAdded', 'labelAdded', 'labelRemoved']
+            });
+        } catch (error) {
+            if (error.code === 404 || error.code === 410) {
+                console.log(`History ID expired for ${user.email}, performing fallback sync`);
+                // History ID too old, get current historyId and just fetch recent messages
+                const profile = await gmail.users.getProfile({ userId: 'me' });
+                const currentHistoryId = profile.data.historyId;
+
+                // Fetch recent messages as a fallback
+                const recent = await gmail.users.messages.list({
+                    userId: 'me',
+                    maxResults: 10
+                });
+
+                const messageIds = (recent.data.messages || []).map(m => m.id);
+                const newEmails = await Promise.all(
+                    messageIds.map(id => getEmailById(googleId, id).catch(() => null))
+                );
+
+                user.lastHistoryId = currentHistoryId;
+                await user.save();
+
+                return {
+                    newEmails: newEmails.filter(e => e !== null),
+                    fallback: true
+                };
+            }
+            throw error;
+        }
 
         const history = response.data.history || [];
         const newHistoryId = response.data.historyId;

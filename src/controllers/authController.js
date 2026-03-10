@@ -9,7 +9,14 @@ const authController = {
      */
     getAuthUrl: (req, res) => {
         try {
-            const returnUrl = req.query.returnUrl;
+            let returnUrl = req.query.returnUrl;
+            const orgName = req.query.orgName;
+
+            // If returnUrl is not provided, construct it using orgName if available
+            if (!returnUrl && orgName) {
+                returnUrl = `${process.env.FRONTEND_URL}/${orgName}/email`;
+            }
+
             const url = getAuthUrl(returnUrl);
             res.status(200).json({ url });
         } catch (error) {
@@ -30,6 +37,16 @@ const authController = {
 
         try {
             const user = await handleCallback(code);
+
+            // Automatically start watching inbox for real-time sync
+            try {
+                const { watchInbox } = require('../services/gmailService');
+                await watchInbox(user.googleId);
+                console.log(`Automatic watch initiated for ${user.email}`);
+            } catch (watchError) {
+                console.error(`Failed to initiate automatic watch for ${user.email}:`, watchError);
+                // Don't fail the whole login if watch fails
+            }
 
             // Use state parameter (returnUrl) if provided, otherwise fallback to default
             const baseUrl = returnUrl || `${process.env.FRONTEND_URL}/ivfindia.com/email`;

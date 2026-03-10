@@ -14,10 +14,12 @@ const { Server } = require('socket.io');
 const socketService = require('./src/services/socketService');
 
 const server = http.createServer(app);
+const origins = [process.env.FRONTEND_URL, process.env.FRONTEND_URL_1, "https://gleaming-mandazi-096272.netlify.app"].filter(Boolean);
 const io = new Server(server, {
     cors: {
-        origin: process.env.FRONTEND_URL || '*',
-        methods: ['GET', 'POST']
+        origin: origins.length > 0 ? origins : "*",
+        methods: ['GET', 'POST'],
+        credentials: true
     }
 });
 
