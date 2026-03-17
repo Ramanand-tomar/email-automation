@@ -1,6 +1,7 @@
 const { google } = require('googleapis');
 const { getAuthenticatedClient } = require('./googleAuthService');
 const User = require('../models/User');
+const Email = require('../models/Email');
 
 /**
  * Helper to get Gmail instance
@@ -11,56 +12,65 @@ const getGmailClient = async (googleId) => {
 };
 
 /**
- * Fetch list of emails
+ * Fetch list of emails from database
  */
-const getEmails = async (googleId, folder = 'INBOX', maxResults = 25, pageToken = null) => {
+const getEmails = async (googleId, folder = 'inbox', maxResults = 25, page = 1) => {
     try {
-        const gmail = await getGmailClient(googleId);
-
-        // Convert generic folder names to standard Gmail labels
-        let labelIds = [folder.toUpperCase()];
-
-        const requestParams = {
-            userId: 'me',
-            labelIds,
-            maxResults
-        };
-
-        if (pageToken) {
-            requestParams.pageToken = pageToken;
+        console.log(`[Diagnostic] Fetching emails for googleId: ${googleId}, folder: ${folder}, page: ${page}`);
+        const skip = (page - 1) * maxResults;
+        
+        // Build query
+        const query = { googleId };
+        
+        // Folder/Label filtering
+        if (folder.toLowerCase() !== 'all') {
+            query.folder = folder.toLowerCase();
         }
 
-        const response = await gmail.users.messages.list(requestParams);
+        const emails = await Email.find(query)
+            .sort({ date: -1 })
+            .skip(skip)
+            .limit(maxResults);
 
-        const messages = response.data.messages || [];
+        const totalCount = await Email.countDocuments(query);
+        console.log(`[Diagnostic] Found ${emails.length} emails in DB for query, total count: ${totalCount}`);
 
-        // Fetch full details for each message
-        const detailedMessages = await Promise.all(messages.map(async (msg) => {
-            const msgDetails = await gmail.users.messages.get({
-                userId: 'me',
-                id: msg.id,
-                format: 'full' // Request full email for body parsing
-            });
-
-            return parseEmailDetails(msgDetails.data);
-        }));
+        if (totalCount === 0 && folder === 'inbox' && page === 1) {
+            console.log(`[Diagnostic] No emails in DB for ${googleId}, triggering emergency sync...`);
+            // Trigger in background
+            syncUserEmails(googleId).catch(err => console.error('[Diagnostic] Emergency sync failed:', err));
+        }
 
         return {
-            emails: detailedMessages,
-            nextPageToken: response.data.nextPageToken || null
+            emails,
+            pagination: {
+                currentPage: page,
+                totalPages: Math.ceil(totalCount / maxResults),
+                totalEmails: totalCount,
+                hasNextPage: skip + emails.length < totalCount
+            }
         };
 
     } catch (error) {
-        console.error('Error fetching emails:', error);
+        console.error('Error fetching emails from DB:', error);
         throw error;
     }
 };
 
 /**
- * Fetch a single email by ID with full details
+ * Fetch a single email by ID (DB first, then Gmail API fallback)
  */
 const getEmailById = async (googleId, messageId) => {
     try {
+        // Try DB first
+        let email = await Email.findOne({ messageId });
+        
+        if (email) {
+            return email;
+        }
+
+        // Fallback to Gmail API
+        console.log(`Email ${messageId} not found in DB, fetching from Gmail API`);
         const gmail = await getGmailClient(googleId);
 
         const msgDetails = await gmail.users.messages.get({
@@ -69,7 +79,12 @@ const getEmailById = async (googleId, messageId) => {
             format: 'full'
         });
 
-        return parseEmailDetails(msgDetails.data);
+        const parsedEmail = parseEmailDetails(msgDetails.data);
+        
+        // Save to DB for future requests
+        await saveEmailsToDb(googleId, [parsedEmail]);
+        
+        return { ...parsedEmail, googleId };
     } catch (error) {
         console.error(`Error fetching email ${messageId}:`, error);
         throw error;
@@ -77,27 +92,38 @@ const getEmailById = async (googleId, messageId) => {
 };
 
 /**
- * Fetch a full conversation thread by its ID
+ * Fetch a full conversation thread by its ID (DB first)
  */
 const getThreadById = async (googleId, threadId) => {
     try {
-        const gmail = await getGmailClient(googleId);
+        // Try fetching all messages in thread from DB
+        let emails = await Email.find({ threadId }).sort({ date: 1 });
 
-        const threadDetails = await gmail.users.threads.get({
-            userId: 'me',
-            id: threadId,
-            format: 'full'
-        });
+        if (emails.length === 0) {
+            // Fallback to Gmail API
+            console.log(`Thread ${threadId} not found in DB, fetching from Gmail API`);
+            const gmail = await getGmailClient(googleId);
 
-        const messages = threadDetails.data.messages || [];
-        const parsedMessages = messages.map(msg => parseEmailDetails(msg));
+            const threadDetails = await gmail.users.threads.get({
+                userId: 'me',
+                id: threadId,
+                format: 'full'
+            });
 
-        // Return the latest message's metadata but include all messages
-        const lastMessage = parsedMessages[parsedMessages.length - 1];
+            const messages = threadDetails.data.messages || [];
+            const parsedMessages = messages.map(msg => parseEmailDetails(msg));
+            
+            // Save all messages in thread to DB
+            await saveEmailsToDb(googleId, parsedMessages);
+            emails = parsedMessages.map(m => ({ ...m, googleId }));
+        }
+
+        // Return structured thread data
+        const lastMessage = emails[emails.length - 1];
 
         return {
             ...lastMessage,
-            messages: parsedMessages
+            messages: emails
         };
     } catch (error) {
         console.error(`Error fetching thread ${threadId}:`, error);
@@ -164,6 +190,15 @@ const sendEmail = async (googleId, { to, subject, body, cc, bcc, from, replyToMe
             requestBody
         });
 
+        // After sending, fetch the full details and save to DB
+        try {
+            const sentMsgId = response.data.id;
+            const fullSentMsg = await getEmailById(googleId, sentMsgId);
+            await saveEmailsToDb(googleId, [fullSentMsg]);
+        } catch (saveErr) {
+            console.error('Failed to save sent email to DB:', saveErr);
+        }
+
         return response.data;
     } catch (error) {
         console.error('Error sending email:', error);
@@ -207,6 +242,16 @@ const modifyEmail = async (googleId, messageId, action) => {
             }
         });
 
+        // Update local DB to stay in sync
+        const update = {};
+        if (action === 'mark_read') update.isRead = true;
+        if (action === 'mark_unread') update.isRead = false;
+        if (action === 'archive') update.folder = 'archive';
+        if (action === 'trash') update.folder = 'trash';
+        
+        // Also update the full labels list if needed
+        await Email.updateOne({ messageId }, { $set: update });
+
         return response.data;
     } catch (error) {
         console.error(`Error modifying email ${messageId}:`, error);
@@ -226,6 +271,9 @@ const deleteEmail = async (googleId, messageId) => {
             id: messageId
         });
 
+        // Update local DB
+        await Email.updateOne({ messageId }, { $set: { folder: 'trash' } });
+
         return response.data;
     } catch (error) {
         console.error(`Error deleting email ${messageId}:`, error);
@@ -237,12 +285,31 @@ const deleteEmail = async (googleId, messageId) => {
  * Specifically reply to a message by its ID.
  * Automatically handles threading and metadata.
  */
-const replyToEmail = async (googleId, originalMessageId, { body, to, cc, bcc, subject } = {}) => {
+const replyToEmail = async (googleId, id, { body, to, cc, bcc, subject } = {}) => {
     try {
         // Fetch original to get Message-ID and threadId
-        const original = await getEmailById(googleId, originalMessageId);
+        // First try to find as messageId
+        let original = await Email.findOne({ messageId: id });
+        
+        // If not found, try to find the latest message in the thread if id is a threadId
+        if (!original) {
+            original = await Email.findOne({ threadId: id }).sort({ date: -1 });
+        }
 
-        if (!original) throw new Error('Original email not found');
+        if (!original) {
+            // If still not in DB, try fetching from Gmail directly as messageId
+            try {
+                original = await getEmailById(googleId, id);
+            } catch (err) {
+                // If that fails too, maybe it's a threadId but not in our DB yet
+                const thread = await getThreadById(googleId, id);
+                if (thread && thread.messages && thread.messages.length > 0) {
+                    original = thread.messages[thread.messages.length - 1];
+                }
+            }
+        }
+
+        if (!original) throw new Error('Original email or thread not found');
 
         // Prepare reply metadata
         const replyParams = {
@@ -343,7 +410,12 @@ const parseEmailDetails = (data) => {
     return {
         id: data.id,
         threadId: data.threadId,
-        folder: data.labelIds.find(l => !['UNREAD', 'STARRED', 'IMPORTANT', 'CATEGORY_PERSONAL'].includes(l))?.toLowerCase() || 'inbox',
+        folder: (() => {
+            const prioritized = ['INBOX', 'SENT', 'DRAFT', 'TRASH', 'SPAM'];
+            const found = data.labelIds.find(l => prioritized.includes(l));
+            if (found) return found.toLowerCase();
+            return data.labelIds.find(l => !['UNREAD', 'STARRED', 'IMPORTANT', 'CATEGORY_PERSONAL'].includes(l))?.toLowerCase() || 'inbox';
+        })(),
         isRead: !data.labelIds.includes('UNREAD'),
         isStarred: data.labelIds.includes('STARRED'),
         sender: {
@@ -351,6 +423,7 @@ const parseEmailDetails = (data) => {
             email: senderEmail
         },
         to,
+        receiver: to, // Added receiver field
         cc,
         bcc,
         messageIdHeader,
@@ -358,10 +431,44 @@ const parseEmailDetails = (data) => {
         subject,
         snippet: data.snippet,
         date: new Date(date).toISOString(),
+        googleId: '', // Placeholder, will be set during saving
         body,
         attachments,
+        labels: data.labelIds,
         tags: data.labelIds.filter(l => ['CATEGORY_UPDATES', 'CATEGORY_PROMOTIONS', 'CATEGORY_SOCIAL', 'IMPORTANT'].includes(l))
     };
+};
+
+/**
+ * Helper to save a list of emails to the database
+ * @param {string} googleId 
+ * @param {Array} emails 
+ */
+const saveEmailsToDb = async (googleId, emails) => {
+    if (!emails || emails.length === 0) return;
+
+    const operations = emails.map(email => ({
+        updateOne: {
+            filter: { messageId: email.id },
+            update: {
+                $set: {
+                    ...email,
+                    messageId: email.id,
+                    googleId,
+                    date: new Date(email.date)
+                }
+            },
+            upsert: true
+        }
+    }));
+
+    try {
+        console.log(`[Diagnostic] Attempting to bulk save ${emails.length} emails to DB: [${emails.map(e => e.id).join(', ')}]`);
+        await Email.bulkWrite(operations);
+        console.log(`Successfully saved/updated ${emails.length} emails for user ${googleId}`);
+    } catch (error) {
+        console.error(`Error saving emails to database for user ${googleId}:`, error);
+    }
 };
 
 /**
@@ -376,7 +483,6 @@ const watchInbox = async (googleId) => {
         const response = await gmail.users.watch({
             userId: 'me',
             requestBody: {
-                labelIds: ['INBOX'],
                 topicName: process.env.GOOGLE_PUBSUB_TOPIC
             }
         });
@@ -401,16 +507,61 @@ const watchInbox = async (googleId) => {
  */
 const syncUserEmails = async (googleId) => {
     try {
+        console.log(`[Diagnostic] Starting sync for googleId: ${googleId}`);
         const gmail = await getGmailClient(googleId);
         const user = await User.findOne({ googleId });
 
-        if (!user.lastHistoryId) {
-            console.log(`No historyId for user ${user.email}, performing initial fetch to get current historyId`);
-            // If no historyId, get the current state
+        const emailCount = await Email.countDocuments({ googleId });
+        if (emailCount === 0 || !user.lastHistoryId) {
+            console.log(`[Diagnostic] Database empty or no historyId for user ${user.email}, performing initial fetch with filters`);
+            
+            // Construct query based on syncPeriod and inboxCategories
+            let query = [];
+            
+            // Sync Period filter
+            if (user.syncPeriod && user.syncPeriod !== 'everything') {
+                const days = parseInt(user.syncPeriod);
+                if (!isNaN(days)) {
+                    const date = new Date();
+                    date.setDate(date.getDate() - days);
+                    const dateStr = date.toISOString().split('T')[0].replace(/-/g, '/');
+                    query.push(`after:${dateStr}`);
+                }
+            }
+            
+            // Inbox Categories filter
+            if (user.inboxCategories && user.inboxCategories.length > 0) {
+                const categoryQuery = user.inboxCategories.map(cat => {
+                    const mappedCat = cat.toLowerCase() === 'primary' ? 'personal' : cat.toLowerCase();
+                    return `category:${mappedCat}`;
+                }).join(' OR ');
+                query.push(`(${categoryQuery})`);
+            }
+            
+            const q = query.join(' ');
+            console.log(`[Diagnostic] Syncing with query: "${q}"`);
+
+            const initialList = await gmail.users.messages.list({
+                userId: 'me',
+                q: q || undefined,
+                maxResults: 100 // Fetch a decent amount for initial sync
+            });
+
+            const initialMessages = initialList.data.messages || [];
+            console.log(`[Diagnostic] Gmail API returned ${initialMessages.length} messages for initial sync`);
+            const newEmails = await Promise.all(
+                initialMessages.map(msg => getEmailById(googleId, msg.id).catch(() => null))
+            );
+            
+            const validEmails = newEmails.filter(e => e !== null);
+            await saveEmailsToDb(googleId, validEmails);
+
+            // Get current historyId for subsequent incremental syncs
             const profile = await gmail.users.getProfile({ userId: 'me' });
             user.lastHistoryId = profile.data.historyId;
             await user.save();
-            return { newEmails: [] };
+            
+            return { newEmails: validEmails };
         }
 
         let response;
@@ -465,6 +616,27 @@ const syncUserEmails = async (googleId) => {
             [...new Set(messageIds)].map(id => getEmailById(googleId, id).catch(() => null))
         );
 
+        const validEmails = newEmails.filter(e => e !== null);
+        
+        // Apply category filter during background sync if categories are set
+        let filteredEmails = validEmails;
+        if (user.inboxCategories && user.inboxCategories.length > 0) {
+            const allowedLabels = user.inboxCategories.map(cat => {
+                const mappedCat = (cat.toLowerCase() === 'primary' ? 'personal' : cat.toLowerCase()).toUpperCase();
+                return `CATEGORY_${mappedCat}`;
+            });
+            
+            filteredEmails = validEmails.filter(email => 
+                email.labels.some(label => allowedLabels.includes(label)) ||
+                email.labels.includes('INBOX') ||
+                email.labels.includes('SENT') ||
+                email.labels.includes('DRAFT')
+            );
+        }
+
+        // Save to database
+        await saveEmailsToDb(googleId, filteredEmails);
+
         // Update user's historyId for next sync
         if (newHistoryId) {
             user.lastHistoryId = newHistoryId;
@@ -472,7 +644,7 @@ const syncUserEmails = async (googleId) => {
         }
 
         return {
-            newEmails: newEmails.filter(e => e !== null),
+            newEmails: filteredEmails,
             history
         };
     } catch (error) {

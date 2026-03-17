@@ -18,14 +18,24 @@ const SCOPES = [
 
 /**
  * Generate the authentication URL for Google OAuth
- * @param {string} state - Optional return URL to pass through the OAuth flow
+ * @param {string} returnUrl - Optional return URL to redirect after OAuth
+ * @param {Object} syncSettings - Optional sync settings (syncPeriod, inboxCategories)
  */
-const getAuthUrl = (state) => {
+const getAuthUrl = (returnUrl, syncSettings = {}) => {
+    // Combine returnUrl and syncSettings into a single state object
+    const stateObj = {
+        returnUrl,
+        ...syncSettings
+    };
+
+    // Encode state as base64 to ensure it's handled correctly by Google
+    const state = Buffer.from(JSON.stringify(stateObj)).toString('base64');
+
     return oauth2Client.generateAuthUrl({
         access_type: 'offline', // Required to receive a refresh token
         prompt: 'consent', // Force to always show consent screen to ensure refresh token is provided
         scope: SCOPES,
-        state: state // Pass the state parameter back to the redirect URI
+        state: state // Pass the encoded state parameter
     });
 };
 
