@@ -12,7 +12,7 @@ const gmailController = {
         // For this example, we'll expect it in the headers or query
         const googleId = req.headers['x-google-id'] || req.query.googleId;
         const folder = req.query.folder || 'inbox';
-        const pageToken = req.query.pageToken;
+        const page = parseInt(req.query.page) || 1;
         const maxResults = parseInt(req.query.maxResults) || 25;
 
         if (!googleId) {
@@ -20,7 +20,7 @@ const gmailController = {
         }
 
         try {
-            const result = await getEmails(googleId, folder, maxResults, pageToken);
+            const result = await getEmails(googleId, folder, maxResults, page);
             res.status(200).json(result);
         } catch (error) {
             console.error('Error in getEmails controller:', error);
@@ -179,6 +179,26 @@ const gmailController = {
     },
 
     /**
+     * POST /api/gmail/sync
+     * Manually trigger a synchronization of emails from Gmail API
+     */
+    syncEmails: async (req, res) => {
+        const googleId = req.headers['x-google-id'] || req.body.googleId || req.query.googleId;
+
+        if (!googleId) {
+            return res.status(401).json({ error: 'Unauthorized: Missing googleId' });
+        }
+
+        try {
+            const result = await syncUserEmails(googleId);
+            res.status(200).json({ success: true, ...result });
+        } catch (error) {
+            console.error('Error in syncEmails controller:', error);
+            res.status(500).json({ error: 'Failed to sync emails' });
+        }
+    },
+
+    /**
      * POST /api/gmail/watch
      * Initiate Gmail watch for a user
      */
@@ -234,10 +254,13 @@ const gmailController = {
 
             // Notify frontend via WebSockets if there are new emails
             if (syncResult.newEmails && syncResult.newEmails.length > 0) {
+                console.log(`[Webhook] Found ${syncResult.newEmails.length} new emails for ${user.email}. Subjects: [${syncResult.newEmails.map(e => e.subject).join(', ')}]`);
                 socketService.notifyUser(user.googleId, 'new_emails', {
                     count: syncResult.newEmails.length,
                     latestEmails: syncResult.newEmails
                 });
+            } else {
+                console.log(`[Webhook] No new emails found for ${user.email} after sync.`);
             }
 
             // Always acknowledge Pub/Sub notifications

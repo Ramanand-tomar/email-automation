@@ -17,7 +17,10 @@ const authController = {
                 returnUrl = `${process.env.FRONTEND_URL}/${orgName}/email`;
             }
 
-            const url = getAuthUrl(returnUrl);
+            const url = getAuthUrl(returnUrl, {
+                syncPeriod: req.query.syncPeriod,
+                inboxCategories: req.query.inboxCategories
+            });
             res.status(200).json({ url });
         } catch (error) {
             res.status(500).json({ error: 'Failed to generate auth URL' });
@@ -29,7 +32,18 @@ const authController = {
      * Handles the redirect from Google, exchanges code for tokens
      */
     oauthCallback: async (req, res) => {
-        const { code, state: returnUrl } = req.query;
+        const { code, state } = req.query;
+
+        let decodedState = {};
+        try {
+            if (state) {
+                decodedState = JSON.parse(Buffer.from(state, 'base64').toString());
+            }
+        } catch (e) {
+            console.error('Failed to decode state:', e);
+        }
+
+        const { returnUrl, syncPeriod, inboxCategories } = decodedState;
 
         if (!code) {
             return res.status(400).json({ error: 'No authorization code provided' });
@@ -37,15 +51,27 @@ const authController = {
 
         try {
             const user = await handleCallback(code);
+            console.log(`[Diagnostic] OAuth successful. User: ${user.email}, googleId: ${user.googleId}`);
+
+            // Update user sync settings if provided
+            if (syncPeriod) user.syncPeriod = syncPeriod;
+            if (inboxCategories) user.inboxCategories = inboxCategories.split(',').map(c => c.trim());
+            await user.save();
+
+            // Automatically start watching inbox for real-time sync
 
             // Automatically start watching inbox for real-time sync
             try {
-                const { watchInbox } = require('../services/gmailService');
+                const { watchInbox, syncUserEmails } = require('../services/gmailService');
                 await watchInbox(user.googleId);
                 console.log(`Automatic watch initiated for ${user.email}`);
+                
+                // Trigger initial sync of historical emails
+                syncUserEmails(user.googleId).catch(err => 
+                    console.error(`Initial sync failed for ${user.email}:`, err)
+                );
             } catch (watchError) {
-                console.error(`Failed to initiate automatic watch for ${user.email}:`, watchError);
-                // Don't fail the whole login if watch fails
+                console.error(`Failed to initiate automatic watch/sync for ${user.email}:`, watchError);
             }
 
             // Use state parameter (returnUrl) if provided, otherwise fallback to default

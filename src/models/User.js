@@ -30,6 +30,15 @@ const userSchema = new mongoose.Schema({
     watchExpiration: {
         type: Date,
         default: null
+    },
+    syncPeriod: {
+        type: String,
+        enum: ['7', '30', '90', 'everything'],
+        default: '30'
+    },
+    inboxCategories: {
+        type: [String],
+        default: ['primary']
     }
 }, {
     timestamps: true
