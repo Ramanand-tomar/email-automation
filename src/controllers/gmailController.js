@@ -9,18 +9,20 @@ const gmailController = {
      */
     getEmails: async (req, res) => {
         // In a real app with sessions/JWT, googleId would come from `req.user.googleId`
-        // For this example, we'll expect it in the headers or query
-        const googleId = req.headers['x-google-id'] || req.query.googleId;
+        // For this example, we'll expect it in the headers, body, or query
+        const googleId = req.headers['x-google-id'] || req.body.googleId || req.query.googleId;
+        const orgId = req.headers['x-org-id'] || req.body.orgId || req.query.orgId;
         const folder = req.query.folder || 'inbox';
         const page = parseInt(req.query.page) || 1;
         const maxResults = parseInt(req.query.maxResults) || 25;
 
-        if (!googleId) {
-            return res.status(401).json({ error: 'Unauthorized: Missing googleId' });
+        // One of googleId or orgId must be provided
+        if (!googleId && !orgId) {
+            return res.status(401).json({ error: 'Unauthorized: Missing googleId or orgId' });
         }
 
         try {
-            const result = await getEmails(googleId, folder, maxResults, page);
+            const result = await getEmails(googleId, folder, maxResults, page, orgId);
             res.status(200).json(result);
         } catch (error) {
             console.error('Error in getEmails controller:', error);

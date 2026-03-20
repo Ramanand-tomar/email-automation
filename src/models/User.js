@@ -39,6 +39,10 @@ const userSchema = new mongoose.Schema({
     inboxCategories: {
         type: [String],
         default: ['primary']
+    },
+    orgId: {
+        type: String,
+        index: true
     }
 }, {
     timestamps: true

@@ -53,6 +53,10 @@ const emailSchema = new mongoose.Schema({
     isStarred: {
         type: Boolean,
         default: false
+    },
+    orgId: {
+        type: String,
+        index: true
     }
 }, {
     timestamps: true
@@ -61,6 +65,8 @@ const emailSchema = new mongoose.Schema({
 // Index for efficient searching and sorting
 emailSchema.index({ googleId: 1, date: -1 });
 emailSchema.index({ googleId: 1, folder: 1 });
+emailSchema.index({ orgId: 1, date: -1 });
+emailSchema.index({ orgId: 1, folder: 1 });
 
 const Email = mongoose.model('Email', emailSchema);
 

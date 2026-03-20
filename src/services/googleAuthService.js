@@ -22,9 +22,10 @@ const SCOPES = [
  * @param {Object} syncSettings - Optional sync settings (syncPeriod, inboxCategories)
  */
 const getAuthUrl = (returnUrl, syncSettings = {}) => {
-    // Combine returnUrl and syncSettings into a single state object
+    // Combine returnUrl, orgId and syncSettings into a single state object
     const stateObj = {
         returnUrl,
+        orgId: syncSettings.orgId,
         ...syncSettings
     };
 

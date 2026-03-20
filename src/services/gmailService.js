@@ -14,26 +14,71 @@ const getGmailClient = async (googleId) => {
 /**
  * Fetch list of emails from database
  */
-const getEmails = async (googleId, folder = 'inbox', maxResults = 25, page = 1) => {
+const getEmails = async (googleId, folder = 'inbox', maxResults = 25, page = 1, orgId = null) => {
     try {
-        console.log(`[Diagnostic] Fetching emails for googleId: ${googleId}, folder: ${folder}, page: ${page}`);
+        console.log(`[Diagnostic] Fetching emails for googleId: ${googleId}, orgId: ${orgId}, folder: ${folder}, page: ${page}`);
         const skip = (page - 1) * maxResults;
+        // Build match query
+        const matchQuery = {};
         
-        // Build query
-        const query = { googleId };
+        if (googleId) matchQuery.googleId = googleId;
+        if (orgId) matchQuery.orgId = orgId;
         
-        // Folder/Label filtering
-        if (folder.toLowerCase() !== 'all') {
-            query.folder = folder.toLowerCase();
+        // If neither is provided, we should probably throw an error or return empty, 
+        // but for now, let's assume one is always provided.
+        if (!googleId && !orgId) {
+            return { emails: [], pagination: { currentPage: page, totalPages: 0, totalEmails: 0, hasNextPage: false } };
         }
 
-        const emails = await Email.find(query)
-            .sort({ date: -1 })
-            .skip(skip)
-            .limit(maxResults);
+        if (folder.toLowerCase() !== 'all') {
+            matchQuery.folder = folder.toLowerCase();
+        }
 
-        const totalCount = await Email.countDocuments(query);
-        console.log(`[Diagnostic] Found ${emails.length} emails in DB for query, total count: ${totalCount}`);
+        // Use aggregation to group by threadId and count messages for each thread
+        const aggregationPipeline = [
+            { $match: matchQuery },
+            { $sort: { date: -1 } }, 
+            {
+                $group: {
+                    _id: "$threadId",
+                    latestMessage: { $first: "$$ROOT" }
+                }
+            },
+            {
+                $lookup: {
+                    from: "emails",
+                    localField: "_id",
+                    foreignField: "threadId",
+                    as: "threadMessages"
+                }
+            },
+            {
+                $addFields: {
+                    msg_count: { $size: "$threadMessages" }
+                }
+            },
+            {
+                $replaceRoot: {
+                    newRoot: { $mergeObjects: ["$latestMessage", { msg_count: "$msg_count" }] }
+                }
+            },
+            { $sort: { date: -1 } }, // Sort threads by the latest message date
+            { $skip: skip },
+            { $limit: maxResults }
+        ];
+
+        const emails = await Email.aggregate(aggregationPipeline);
+
+        // Get total count of unique threads for pagination
+        const totalThreadsAggregation = [
+            { $match: matchQuery },
+            { $group: { _id: "$threadId" } },
+            { $count: "total" }
+        ];
+        const totalResult = await Email.aggregate(totalThreadsAggregation);
+        const totalCount = totalResult.length > 0 ? totalResult[0].total : 0;
+
+        console.log(`[Diagnostic] Found ${emails.length} unique threads in DB for query, total threads: ${totalCount}`);
 
         if (totalCount === 0 && folder === 'inbox' && page === 1) {
             console.log(`[Diagnostic] No emails in DB for ${googleId}, triggering emergency sync...`);
@@ -60,31 +105,32 @@ const getEmails = async (googleId, folder = 'inbox', maxResults = 25, page = 1) 
 /**
  * Fetch a single email by ID (DB first, then Gmail API fallback)
  */
-const getEmailById = async (googleId, messageId) => {
+const getEmailById = async (googleId, messageId, orgId = null) => {
     try {
-        // Try DB first
-        let email = await Email.findOne({ messageId });
+        const gmail = await getGmailClient(googleId);
         
-        if (email) {
-            return email;
+        // Try to find in DB first
+        const dbEmail = await Email.findOne({ messageId, googleId });
+        if (dbEmail) {
+            // Count messages in thread for UI consistency
+            const count = await Email.countDocuments({ threadId: dbEmail.threadId, googleId });
+            return { ...dbEmail.toObject(), msg_count: count, orgId: dbEmail.orgId || orgId };
         }
 
-        // Fallback to Gmail API
-        console.log(`Email ${messageId} not found in DB, fetching from Gmail API`);
-        const gmail = await getGmailClient(googleId);
-
-        const msgDetails = await gmail.users.messages.get({
+        const response = await gmail.users.messages.get({
             userId: 'me',
             id: messageId,
             format: 'full'
         });
 
-        const parsedEmail = parseEmailDetails(msgDetails.data);
+        const parsedEmail = parseEmailDetails(response.data);
         
         // Save to DB for future requests
-        await saveEmailsToDb(googleId, [parsedEmail]);
+        await saveEmailsToDb(googleId, [parsedEmail], orgId);
         
-        return { ...parsedEmail, googleId };
+        const count = await Email.countDocuments({ threadId: parsedEmail.threadId, googleId });
+
+        return { ...parsedEmail, googleId, orgId, msg_count: count };
     } catch (error) {
         console.error(`Error fetching email ${messageId}:`, error);
         throw error;
@@ -444,8 +490,16 @@ const parseEmailDetails = (data) => {
  * @param {string} googleId 
  * @param {Array} emails 
  */
-const saveEmailsToDb = async (googleId, emails) => {
+const saveEmailsToDb = async (googleId, emails, orgId = null) => {
     if (!emails || emails.length === 0) return;
+
+    // If orgId is not provided, try to look it up from User
+    let finalOrgId = orgId;
+    if (!finalOrgId && googleId) {
+        const User = require('../models/User');
+        const user = await User.findOne({ googleId });
+        if (user) finalOrgId = user.orgId;
+    }
 
     const operations = emails.map(email => ({
         updateOne: {
@@ -455,6 +509,7 @@ const saveEmailsToDb = async (googleId, emails) => {
                     ...email,
                     messageId: email.id,
                     googleId,
+                    orgId: finalOrgId,
                     date: new Date(email.date)
                 }
             },
@@ -530,7 +585,12 @@ const syncUserEmails = async (googleId) => {
             }
             
             // Inbox Categories filter
-            if (user.inboxCategories && user.inboxCategories.length > 0) {
+            const allCategories = ['primary', 'social', 'promotions', 'updates', 'forums'];
+            const hasAllCategories = allCategories.every(cat => 
+                user.inboxCategories && user.inboxCategories.map(c => c.toLowerCase()).includes(cat)
+            );
+
+            if (user.inboxCategories && user.inboxCategories.length > 0 && !hasAllCategories) {
                 const categoryQuery = user.inboxCategories.map(cat => {
                     const mappedCat = cat.toLowerCase() === 'primary' ? 'personal' : cat.toLowerCase();
                     return `category:${mappedCat}`;
@@ -550,11 +610,11 @@ const syncUserEmails = async (googleId) => {
             const initialMessages = initialList.data.messages || [];
             console.log(`[Diagnostic] Gmail API returned ${initialMessages.length} messages for initial sync`);
             const newEmails = await Promise.all(
-                initialMessages.map(msg => getEmailById(googleId, msg.id).catch(() => null))
+                initialMessages.map(msg => getEmailById(googleId, msg.id, user.orgId).catch(() => null))
             );
             
             const validEmails = newEmails.filter(e => e !== null);
-            await saveEmailsToDb(googleId, validEmails);
+            await saveEmailsToDb(googleId, validEmails, user.orgId);
 
             // Get current historyId for subsequent incremental syncs
             const profile = await gmail.users.getProfile({ userId: 'me' });
@@ -586,7 +646,7 @@ const syncUserEmails = async (googleId) => {
 
                 const messageIds = (recent.data.messages || []).map(m => m.id);
                 const newEmails = await Promise.all(
-                    messageIds.map(id => getEmailById(googleId, id).catch(() => null))
+                    messageIds.map(id => getEmailById(googleId, id, user.orgId).catch(() => null))
                 );
 
                 user.lastHistoryId = currentHistoryId;
@@ -613,14 +673,19 @@ const syncUserEmails = async (googleId) => {
 
         // Fetch full details for new messages
         const newEmails = await Promise.all(
-            [...new Set(messageIds)].map(id => getEmailById(googleId, id).catch(() => null))
+            [...new Set(messageIds)].map(id => getEmailById(googleId, id, user.orgId).catch(() => null))
         );
 
         const validEmails = newEmails.filter(e => e !== null);
         
         // Apply category filter during background sync if categories are set
         let filteredEmails = validEmails;
-        if (user.inboxCategories && user.inboxCategories.length > 0) {
+        const allCategories = ['primary', 'social', 'promotions', 'updates', 'forums'];
+        const hasAllCategories = allCategories.every(cat => 
+            user.inboxCategories && user.inboxCategories.map(c => c.toLowerCase()).includes(cat)
+        );
+
+        if (user.inboxCategories && user.inboxCategories.length > 0 && !hasAllCategories) {
             const allowedLabels = user.inboxCategories.map(cat => {
                 const mappedCat = (cat.toLowerCase() === 'primary' ? 'personal' : cat.toLowerCase()).toUpperCase();
                 return `CATEGORY_${mappedCat}`;
@@ -635,7 +700,7 @@ const syncUserEmails = async (googleId) => {
         }
 
         // Save to database
-        await saveEmailsToDb(googleId, filteredEmails);
+        await saveEmailsToDb(googleId, filteredEmails, user.orgId);
 
         // Update user's historyId for next sync
         if (newHistoryId) {

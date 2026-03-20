@@ -19,7 +19,8 @@ const authController = {
 
             const url = getAuthUrl(returnUrl, {
                 syncPeriod: req.query.syncPeriod,
-                inboxCategories: req.query.inboxCategories
+                inboxCategories: req.query.inboxCategories,
+                orgId: req.query.orgId
             });
             res.status(200).json({ url });
         } catch (error) {
@@ -43,7 +44,7 @@ const authController = {
             console.error('Failed to decode state:', e);
         }
 
-        const { returnUrl, syncPeriod, inboxCategories } = decodedState;
+        const { returnUrl, syncPeriod, inboxCategories, orgId } = decodedState;
 
         if (!code) {
             return res.status(400).json({ error: 'No authorization code provided' });
@@ -56,6 +57,7 @@ const authController = {
             // Update user sync settings if provided
             if (syncPeriod) user.syncPeriod = syncPeriod;
             if (inboxCategories) user.inboxCategories = inboxCategories.split(',').map(c => c.trim());
+            if (orgId) user.orgId = orgId;
             await user.save();
 
             // Automatically start watching inbox for real-time sync
@@ -65,9 +67,9 @@ const authController = {
                 const { watchInbox, syncUserEmails } = require('../services/gmailService');
                 await watchInbox(user.googleId);
                 console.log(`Automatic watch initiated for ${user.email}`);
-                
+
                 // Trigger initial sync of historical emails
-                syncUserEmails(user.googleId).catch(err => 
+                syncUserEmails(user.googleId).catch(err =>
                     console.error(`Initial sync failed for ${user.email}:`, err)
                 );
             } catch (watchError) {
