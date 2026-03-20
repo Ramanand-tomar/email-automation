@@ -61,7 +61,7 @@ export default function EmailDetail({ emailId, onPrevEmail, onNextEmail }) {
     <div className="flex flex-col h-full">
       {/* Navigation bar */}
       {(onPrevEmail || onNextEmail) && (
-        <div className="flex items-center justify-between px-6 py-2 border-b border-gray-100 bg-gray-50 flex-shrink-0">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-2 border-b border-gray-100 bg-gray-50 flex-shrink-0">
           <button
             onClick={onPrevEmail}
             disabled={!onPrevEmail}
@@ -88,34 +88,34 @@ export default function EmailDetail({ emailId, onPrevEmail, onNextEmail }) {
       )}
 
       {/* Email header */}
-      <div className="px-6 py-4 border-b border-gray-100 flex-shrink-0">
-        <h2 className="text-lg font-semibold text-gray-900 mb-3 leading-tight">
+      <div className="px-4 sm:px-6 py-4 border-b border-gray-100 flex-shrink-0">
+        <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 leading-tight">
           {email.subject || '(No Subject)'}
         </h2>
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
           <div className="flex items-start gap-3">
             <Avatar name={senderName} size="md" />
-            <div>
-              <div className="font-medium text-gray-900 text-sm">{senderName}</div>
-              <div className="text-xs text-gray-400">{email.sender?.email}</div>
-              <div className="text-xs text-gray-400 mt-0.5">To: {email.to || email.receiver}</div>
+            <div className="min-w-0">
+              <div className="font-medium text-gray-900 text-sm truncate">{senderName}</div>
+              <div className="text-xs text-gray-400 truncate">{email.sender?.email}</div>
+              <div className="text-xs text-gray-400 mt-0.5 truncate">To: {email.to || email.receiver}</div>
             </div>
           </div>
-          <div className="flex-shrink-0 text-right">
+          <div className="flex items-center justify-between sm:flex-col sm:items-end sm:text-right flex-shrink-0 pl-10 sm:pl-0">
             <div className="text-xs text-gray-400">
               {email.date ? format(new Date(email.date), 'MMM d, yyyy h:mm a') : ''}
             </div>
             <EmailActionBar
-            email={email}
-            onReply={() => setShowReply(!showReply)}
-            onAfterAction={onNextEmail || onPrevEmail}
-          />
+              email={email}
+              onReply={() => setShowReply(!showReply)}
+              onAfterAction={onNextEmail || onPrevEmail}
+            />
           </div>
         </div>
       </div>
 
       {/* Email body */}
-      <div className="flex-1 overflow-y-auto px-6 py-4">
+      <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
         <div
           className="email-body text-sm text-gray-700 leading-relaxed"
           dangerouslySetInnerHTML={{ __html: sanitize(email.body) }}
