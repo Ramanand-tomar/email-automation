@@ -84,8 +84,8 @@ export default function ReplyPanel({ email, onClose, onSent }) {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50">
-          <p className="text-xs text-gray-400">
+        <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-2 px-4 py-3 border-t border-gray-100 bg-gray-50">
+          <p className="text-xs text-gray-400 text-center sm:text-left">
             {body.length > 0 ? `${body.length} characters` : 'Write or generate a reply above'}
           </p>
           <div className="flex gap-2">

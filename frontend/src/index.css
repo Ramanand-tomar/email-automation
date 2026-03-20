@@ -35,7 +35,20 @@ body {
 }
 
 /* Email body iframe/content isolation */
+.email-body {
+  overflow-x: auto;
+  word-break: break-word;
+}
 .email-body img {
   max-width: 100%;
   height: auto;
+}
+.email-body table {
+  max-width: 100%;
+  overflow-x: auto;
+  display: block;
+}
+.email-body pre {
+  overflow-x: auto;
+  white-space: pre-wrap;
 }

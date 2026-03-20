@@ -3,7 +3,7 @@ import Spinner from '../ui/Spinner';
 import { useAuth } from '../../hooks/useAuth';
 import { useSyncEmails } from '../../hooks/useEmails';
 
-export default function DemoHeader({ activeFolder }) {
+export default function DemoHeader({ activeFolder, onMenuToggle, showBackButton, onBack }) {
   const { user } = useAuth();
   const { mutate: sync, isPending: isSyncing } = useSyncEmails();
 
@@ -16,7 +16,29 @@ export default function DemoHeader({ activeFolder }) {
 
   return (
     <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200">
-      <h1 className="font-semibold text-gray-900 text-base">{folderNames[activeFolder] || 'Inbox'}</h1>
+      <div className="flex items-center gap-2">
+        {/* Mobile: back button when viewing email, hamburger menu otherwise */}
+        {showBackButton ? (
+          <button
+            onClick={onBack}
+            className="md:hidden flex items-center gap-1 text-gray-600 hover:text-brand-600 -ml-1 p-1 rounded-lg transition-colors"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+        ) : (
+          <button
+            onClick={onMenuToggle}
+            className="md:hidden flex items-center text-gray-600 hover:text-brand-600 -ml-1 p-1 rounded-lg transition-colors"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+        )}
+        <h1 className="font-semibold text-gray-900 text-base">{folderNames[activeFolder] || 'Inbox'}</h1>
+      </div>
 
       <div className="flex items-center gap-3">
         <button
@@ -29,7 +51,7 @@ export default function DemoHeader({ activeFolder }) {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
           )}
-          {isSyncing ? 'Syncing...' : 'Sync'}
+          <span className="hidden sm:inline">{isSyncing ? 'Syncing...' : 'Sync'}</span>
         </button>
 
         {user && (

@@ -55,6 +55,8 @@ export default function DemoPage() {
         activeFolder={activeFolder}
         onFolderChange={handleFolderChange}
         onCompose={() => setIsComposing(true)}
+        hasSelectedEmail={!!selectedEmail}
+        onBack={() => setSelectedEmail(null)}
         emailList={
           <EmailList
             folder={activeFolder}
