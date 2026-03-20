@@ -40,7 +40,7 @@ export default function AIReplyGenerator({ email, onReplyGenerated }) {
           </svg>
         </div>
         <span className="text-sm font-semibold text-gray-800">Generate AI Reply</span>
-        <span className="text-xs bg-brand-100 text-brand-600 px-2 py-0.5 rounded-full font-medium">Gemini AI</span>
+        <span className="text-xs bg-brand-100 text-brand-700 px-2 py-0.5 rounded-full font-medium">AI</span>
       </div>
 
       <div className="mb-3">

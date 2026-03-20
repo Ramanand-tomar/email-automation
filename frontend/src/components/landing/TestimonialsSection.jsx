@@ -4,35 +4,35 @@ const testimonials = [
     role: 'Head of Customer Success',
     company: 'TechFlow Inc.',
     avatar: 'PS',
-    color: 'from-brand-400 to-brand-600',
-    quote: 'BeyondChats cut my email response time in half. The AI replies are shockingly good — I barely need to edit them before sending.',
+    color: 'from-teal-400 to-teal-600',
+    quote: 'I used to spend an hour every morning just catching up on email. Now I open BeyondChats, review the AI drafts, tweak a few words, and I\'m done in ten minutes.',
   },
   {
     name: 'Marcus Chen',
     role: 'Founder & CEO',
     company: 'Launchpad Studio',
     avatar: 'MC',
-    color: 'from-accent-400 to-brand-500',
-    quote: 'The real-time sync is a game changer. I get notified the instant an email arrives and the inbox is always up to date across devices.',
+    color: 'from-amber-400 to-orange-500',
+    quote: 'What sold me was the instant sync. I get a ping the moment something lands in my inbox — no more compulsive refreshing between meetings.',
   },
   {
     name: 'Anika Patel',
     role: 'Senior Product Manager',
     company: 'CloudBase',
     avatar: 'AP',
-    color: 'from-purple-400 to-pink-500',
-    quote: 'Setup was literally 30 seconds — connect Gmail and you\'re done. The AI tone selector helps me match my voice perfectly every time.',
+    color: 'from-emerald-400 to-teal-500',
+    quote: 'I connected my Gmail, picked my tone preferences, and had my first AI-drafted reply within a minute. The whole team adopted it the same week.',
   },
 ];
 
 export default function TestimonialsSection() {
   return (
-    <section className="py-24 bg-gray-50">
+    <section className="py-24 bg-stone-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-16">
-          <span className="text-brand-500 font-semibold text-sm uppercase tracking-wider">Testimonials</span>
+          <span className="text-brand-700 font-semibold text-sm uppercase tracking-wider">Testimonials</span>
           <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mt-2 mb-4">
-            Loved by email power users
+            What our users are saying
           </h2>
         </div>
 

@@ -1,13 +1,13 @@
 const stats = [
-  { value: '< 30s', label: 'To connect Gmail', sub: 'OAuth in seconds' },
-  { value: 'Real-time', label: 'Email sync speed', sub: 'Via Google Pub/Sub' },
-  { value: '5 tones', label: 'AI reply styles', sub: 'Professional to casual' },
-  { value: '90 days', label: 'History sync', sub: 'Configurable window' },
+  { value: '< 30s', label: 'To get started', sub: 'One-click Google sign-in' },
+  { value: 'Instant', label: 'Email delivery', sub: 'New messages appear right away' },
+  { value: '5 tones', label: 'Reply styles', sub: 'From formal to friendly' },
+  { value: '90 days', label: 'Of email history', sub: 'Choose how far back to go' },
 ];
 
 export default function StatsSection() {
   return (
-    <section className="py-16 bg-white border-y border-gray-100">
+    <section className="py-16 bg-stone-50 border-y border-gray-100">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
           {stats.map((stat) => (
