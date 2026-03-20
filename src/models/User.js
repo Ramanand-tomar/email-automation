@@ -33,12 +33,12 @@ const userSchema = new mongoose.Schema({
     },
     syncPeriod: {
         type: String,
-        enum: ['7', '30', '90', 'everything'],
-        default: '30'
+        enum: ['7', '15', '30', '60', '90', 'everything'],
+        default: '7'
     },
     inboxCategories: {
         type: [String],
-        default: ['primary']
+        default: ['primary', 'promotions', 'social', 'updates', 'forums']
     }
 }, {
     timestamps: true
