@@ -21,7 +21,7 @@ export default function HeroSection() {
             {/* Badge */}
             <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm text-white rounded-full px-4 py-1.5 text-sm font-medium mb-6">
               <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-              Powered by Google Gemini AI
+              Your inbox, on autopilot
             </div>
 
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white leading-tight mb-6">
@@ -31,8 +31,8 @@ export default function HeroSection() {
             </h1>
 
             <p className="text-white/80 text-lg sm:text-xl max-w-xl mb-8 leading-relaxed">
-              BeyondChats connects to your Gmail and uses AI to draft replies, sync in real-time,
-              and manage your inbox automatically — so you can focus on what matters.
+              Connect your Gmail, and BeyondChats handles the rest — drafting replies,
+              keeping your inbox in sync, and making sure nothing slips through the cracks.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
@@ -46,7 +46,7 @@ export default function HeroSection() {
                   <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
                   <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
                 </svg>
-                Try Live Demo
+                Connect Gmail
               </button>
               <a
                 href="#how-it-works"
@@ -61,7 +61,7 @@ export default function HeroSection() {
 
             {/* Floating badges */}
             <div className="flex flex-wrap gap-3 mt-10 justify-center lg:justify-start">
-              {['Real-time sync', 'AI-powered replies', 'Zero setup', 'Google OAuth'].map((badge) => (
+              {['Instant sync', 'Smart replies', 'One-click setup', 'Secure by design'].map((badge) => (
                 <span key={badge} className="bg-white/15 backdrop-blur-sm text-white/90 text-xs font-medium px-3 py-1.5 rounded-full border border-white/20">
                   ✓ {badge}
                 </span>

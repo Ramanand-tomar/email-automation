@@ -12,7 +12,7 @@ export default function Footer() {
             </div>
             <div>
               <span className="text-white font-bold text-lg">BeyondChats</span>
-              <p className="text-xs text-gray-500">AI-powered email automation</p>
+              <p className="text-xs text-gray-500">Smarter email, less effort</p>
             </div>
           </div>
 
@@ -31,7 +31,7 @@ export default function Footer() {
         </div>
 
         <div className="border-t border-gray-800 mt-8 pt-6 text-center text-xs text-gray-600">
-          © {new Date().getFullYear()} BeyondChats. All rights reserved. Built with React + Node.js + Gmail API.
+          © {new Date().getFullYear()} BeyondChats. All rights reserved.
         </div>
       </div>
     </footer>

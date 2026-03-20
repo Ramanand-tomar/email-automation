@@ -5,9 +5,9 @@ const features = [
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
       </svg>
     ),
-    title: 'Real-time Email Sync',
-    description: 'Gmail Pub/Sub pushes new emails to your inbox the instant they arrive — no polling, no delays.',
-    color: 'from-brand-500 to-brand-400',
+    title: 'Instant Email Sync',
+    description: 'New emails show up the moment they arrive — no refreshing, no waiting around.',
+    color: 'from-teal-500 to-teal-400',
   },
   {
     icon: (
@@ -15,9 +15,9 @@ const features = [
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
       </svg>
     ),
-    title: 'AI Reply Generation',
-    description: 'Gemini AI drafts contextually accurate replies in your chosen tone — professional, friendly, concise, and more.',
-    color: 'from-purple-500 to-pink-500',
+    title: 'Smart Reply Drafts',
+    description: 'Pick a tone — professional, friendly, concise — and get a ready-to-send reply in seconds.',
+    color: 'from-amber-500 to-orange-400',
   },
   {
     icon: (
@@ -26,8 +26,8 @@ const features = [
       </svg>
     ),
     title: 'Multi-folder Management',
-    description: 'Inbox, Sent, Archive, Trash — all managed from one clean interface with threaded conversations.',
-    color: 'from-accent-500 to-teal-400',
+    description: 'Inbox, Sent, Archive, Trash — everything in one clean view with threaded conversations.',
+    color: 'from-emerald-500 to-teal-400',
   },
   {
     icon: (
@@ -35,8 +35,8 @@ const features = [
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
       </svg>
     ),
-    title: 'Live Push Notifications',
-    description: 'WebSocket notifications alert you the moment a new email arrives — even while you\'re composing a reply.',
+    title: 'Instant Notifications',
+    description: 'Get notified the moment a new email lands, even while you\'re writing a reply.',
     color: 'from-orange-500 to-yellow-400',
   },
   {
@@ -45,8 +45,8 @@ const features = [
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
       </svg>
     ),
-    title: 'Secure Google OAuth',
-    description: 'Connect with your Google account in 30 seconds. BeyondChats never stores your Google password.',
+    title: 'One-Click Google Sign-in',
+    description: 'Sign in with your Google account in seconds. We never see or store your password.',
     color: 'from-green-500 to-emerald-400',
   },
   {
@@ -56,22 +56,22 @@ const features = [
       </svg>
     ),
     title: 'Smart Sync History',
-    description: 'Choose to sync 7, 30, or 90 days of email history. Incremental sync keeps everything up to date automatically.',
-    color: 'from-blue-500 to-indigo-400',
+    description: 'Choose to pull in the last week, month, or three months of emails. Everything stays up to date from there.',
+    color: 'from-slate-500 to-slate-600',
   },
 ];
 
 export default function FeaturesSection() {
   return (
-    <section id="features" className="py-24 bg-gray-50">
+    <section id="features" className="py-24 bg-stone-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-16">
-          <span className="text-brand-500 font-semibold text-sm uppercase tracking-wider">Features</span>
+          <span className="text-brand-700 font-semibold text-sm uppercase tracking-wider">Features</span>
           <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mt-2 mb-4">
             Everything you need to automate email
           </h2>
           <p className="text-gray-500 text-lg max-w-2xl mx-auto">
-            A complete email automation platform backed by Google's infrastructure and AI.
+            Everything you need to spend less time in your inbox and more time on real work.
           </p>
         </div>
 

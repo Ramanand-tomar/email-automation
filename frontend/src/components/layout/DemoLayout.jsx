@@ -9,7 +9,7 @@ export default function DemoLayout({
   emailDetail,
 }) {
   return (
-    <div className="h-screen flex overflow-hidden bg-gray-100">
+    <div className="h-screen flex overflow-hidden bg-stone-100">
       {/* Sidebar */}
       <div className="w-64 flex-shrink-0 hidden md:block">
         <Sidebar

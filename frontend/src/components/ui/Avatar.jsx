@@ -1,10 +1,10 @@
 function getColor(name = '') {
   const colors = [
-    'from-brand-400 to-brand-600',
-    'from-accent-400 to-brand-500',
-    'from-purple-400 to-pink-500',
-    'from-green-400 to-teal-500',
-    'from-orange-400 to-red-500',
+    'from-teal-400 to-teal-600',
+    'from-amber-400 to-orange-500',
+    'from-emerald-400 to-green-500',
+    'from-slate-400 to-slate-600',
+    'from-rose-400 to-red-500',
   ];
   const index = name.charCodeAt(0) % colors.length;
   return colors[index];

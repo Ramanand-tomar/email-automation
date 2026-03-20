@@ -2,7 +2,7 @@ const steps = [
   {
     number: '01',
     title: 'Connect Your Gmail',
-    description: 'Click "Try Live Demo" and sign in with Google OAuth. No passwords stored — just secure token access.',
+    description: 'Hit the button, sign in with Google, and you\'re done. Takes about 30 seconds, and we never touch your password.',
     icon: (
       <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
@@ -12,7 +12,7 @@ const steps = [
   {
     number: '02',
     title: 'Inbox Syncs Automatically',
-    description: 'BeyondChats fetches your email history and sets up Google Pub/Sub for real-time notifications. New emails appear instantly.',
+    description: 'Your recent emails load right away, and new ones appear the instant they arrive. No manual refresh needed.',
     icon: (
       <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -22,7 +22,7 @@ const steps = [
   {
     number: '03',
     title: 'Let AI Handle Replies',
-    description: 'Click any email, hit "Generate AI Reply", choose your tone, and Gemini drafts a perfect response. Edit and send in seconds.',
+    description: 'Open any email, tap "Generate Reply", pick your tone, and you\'ll have a polished draft ready to send.',
     icon: (
       <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
@@ -36,12 +36,12 @@ export default function HowItWorks() {
     <section id="how-it-works" className="py-24 bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-16">
-          <span className="text-brand-500 font-semibold text-sm uppercase tracking-wider">How It Works</span>
+          <span className="text-brand-700 font-semibold text-sm uppercase tracking-wider">How It Works</span>
           <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mt-2 mb-4">
             Up and running in 3 steps
           </h2>
           <p className="text-gray-500 text-lg max-w-2xl mx-auto">
-            No complex setup. No API keys to manage. Just connect and go.
+            No complicated setup. Just connect your Gmail and start saving time.
           </p>
         </div>
 
