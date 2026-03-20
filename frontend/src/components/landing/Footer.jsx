@@ -21,6 +21,7 @@ export default function Footer() {
             <a href="#features" className="hover:text-white transition-colors">Features</a>
             <a href="#how-it-works" className="hover:text-white transition-colors">How It Works</a>
             <a href="#demo" className="hover:text-white transition-colors">Live Demo</a>
+            <a href="/privacy" className="hover:text-white transition-colors">Privacy Policy</a>
           </div>
 
           {/* Powered by */}
