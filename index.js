@@ -30,6 +30,9 @@ socketService.init(io);
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+// Express 5 leaves req.body undefined on GET requests — normalize to {} so
+// controllers can safely read req.body.foo without TypeErrors.
+app.use((req, _res, next) => { if (req.body == null) req.body = {}; next(); });
 
 // Connect to Database
 connectDB();

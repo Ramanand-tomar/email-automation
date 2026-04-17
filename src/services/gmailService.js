@@ -67,7 +67,7 @@ const getEmails = async (googleId, folder = 'inbox', maxResults = 25, page = 1, 
             { $limit: maxResults }
         ];
 
-        const emails = await Email.aggregate(aggregationPipeline);
+        let emails = await Email.aggregate(aggregationPipeline);
 
         // Get total count of unique threads for pagination
         const totalThreadsAggregation = [
@@ -75,15 +75,25 @@ const getEmails = async (googleId, folder = 'inbox', maxResults = 25, page = 1, 
             { $group: { _id: "$threadId" } },
             { $count: "total" }
         ];
-        const totalResult = await Email.aggregate(totalThreadsAggregation);
-        const totalCount = totalResult.length > 0 ? totalResult[0].total : 0;
+        let totalResult = await Email.aggregate(totalThreadsAggregation);
+        let totalCount = totalResult.length > 0 ? totalResult[0].total : 0;
 
         console.log(`[Diagnostic] Found ${emails.length} unique threads in DB for query, total threads: ${totalCount}`);
 
-        if (totalCount === 0 && folder === 'inbox' && page === 1) {
-            console.log(`[Diagnostic] No emails in DB for ${googleId}, triggering emergency sync...`);
-            // Trigger in background
-            syncUserEmails(googleId).catch(err => console.error('[Diagnostic] Emergency sync failed:', err));
+        // First-load path: if DB is empty for this user on inbox page 1,
+        // block briefly to pull emails from Gmail, then re-query.
+        if (totalCount === 0 && folder === 'inbox' && page === 1 && googleId) {
+            console.log(`[Diagnostic] No emails in DB for ${googleId}, running emergency sync and awaiting...`);
+            try {
+                await syncUserEmails(googleId);
+                emails = await Email.aggregate(aggregationPipeline);
+                totalResult = await Email.aggregate(totalThreadsAggregation);
+                totalCount = totalResult.length > 0 ? totalResult[0].total : 0;
+                console.log(`[Diagnostic] Post-sync: ${emails.length} threads in DB, total: ${totalCount}`);
+            } catch (syncErr) {
+                console.error('[Diagnostic] Emergency sync failed:', syncErr);
+                // Fall through — return whatever's in DB (still empty, but don't fail the request)
+            }
         }
 
         return {

@@ -60,18 +60,20 @@ const authController = {
             if (orgId) user.orgId = orgId;
             await user.save();
 
-            // Automatically start watching inbox for real-time sync
-
-            // Automatically start watching inbox for real-time sync
+            // Automatically start watching inbox for real-time sync + await initial sync
+            // so the dashboard shows emails immediately after redirect.
             try {
                 const { watchInbox, syncUserEmails } = require('../services/gmailService');
                 await watchInbox(user.googleId);
                 console.log(`Automatic watch initiated for ${user.email}`);
 
-                // Trigger initial sync of historical emails
-                syncUserEmails(user.googleId).catch(err =>
-                    console.error(`Initial sync failed for ${user.email}:`, err)
-                );
+                try {
+                    const result = await syncUserEmails(user.googleId);
+                    console.log(`Initial sync complete for ${user.email}: ${result.newEmails?.length || 0} emails`);
+                } catch (syncErr) {
+                    // Don't block the OAuth flow on sync failure — getEmails() will retry on first load.
+                    console.error(`Initial sync failed for ${user.email}:`, syncErr);
+                }
             } catch (watchError) {
                 console.error(`Failed to initiate automatic watch/sync for ${user.email}:`, watchError);
             }
