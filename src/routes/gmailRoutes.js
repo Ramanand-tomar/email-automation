@@ -3,6 +3,8 @@ const router = express.Router();
 const gmailController = require('../controllers/gmailController');
 
 router.get('/emails', gmailController.getEmails);
+router.get('/export/csv', gmailController.exportCsv);
+router.get('/emails/:messageId/attachments/:attachmentId', gmailController.downloadAttachment);
 router.get('/emails/:id', gmailController.getEmailById);
 router.get('/threads/:id', gmailController.getThreadById);
 router.post('/emails/:id/reply', gmailController.replyToEmail);

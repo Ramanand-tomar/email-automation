@@ -1,5 +1,6 @@
 import Avatar from '../ui/Avatar';
 import Spinner from '../ui/Spinner';
+import ExportMenu from './ExportMenu';
 import { useAuth } from '../../hooks/useAuth';
 import { useSyncEmails } from '../../hooks/useEmails';
 
@@ -41,6 +42,7 @@ export default function DemoHeader({ activeFolder, onMenuToggle, showBackButton,
       </div>
 
       <div className="flex items-center gap-3">
+        <ExportMenu />
         <button
           onClick={() => sync()}
           disabled={isSyncing}

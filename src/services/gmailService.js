@@ -718,6 +718,145 @@ const syncUserEmails = async (googleId) => {
     }
 };
 
+/**
+ * Escape a single field for CSV output (RFC 4180).
+ * Wraps in quotes if it contains a comma, quote, or newline; doubles internal quotes.
+ */
+const escapeCsvField = (value) => {
+    if (value === null || value === undefined) return '';
+    const str = String(value);
+    if (/[",\r\n]/.test(str)) {
+        return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+};
+
+/**
+ * Map Gmail label array to a single category string.
+ */
+const deriveCategory = (labels = []) => {
+    if (labels.includes('CATEGORY_PERSONAL')) return 'primary';
+    if (labels.includes('CATEGORY_SOCIAL')) return 'social';
+    if (labels.includes('CATEGORY_PROMOTIONS')) return 'promotions';
+    if (labels.includes('CATEGORY_UPDATES')) return 'updates';
+    if (labels.includes('CATEGORY_FORUMS')) return 'forums';
+    return '';
+};
+
+const CSV_HEADERS = [
+    'thread_id',
+    'position_in_thread',
+    'direction',
+    'category',
+    'sent_by',
+    'to',
+    'cc',
+    'bcc',
+    'date_sent',
+    'subject',
+    'body',
+    'files_present',
+    'download_links'
+];
+
+/**
+ * Stream CSV export of emails matching filters.
+ * Writes directly to the Express response.
+ */
+const exportEmailsCsv = async (res, { googleId, orgId, days, direction, baseUrl }) => {
+    const match = {};
+    if (googleId) match.googleId = String(googleId);
+    if (orgId) match.orgId = String(orgId);
+
+    if (days) {
+        const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+        match.date = { $gte: since };
+    }
+
+    if (direction === 'sent') {
+        match.folder = 'sent';
+    } else if (direction === 'received') {
+        match.folder = { $ne: 'sent' };
+    }
+
+    res.write(CSV_HEADERS.join(',') + '\n');
+
+    const cursor = Email.find(match)
+        .sort({ threadId: 1, date: 1 })
+        .lean()
+        .cursor();
+
+    let currentThread = null;
+    let position = 0;
+
+    for await (const doc of cursor) {
+        if (doc.threadId !== currentThread) {
+            currentThread = doc.threadId;
+            position = 1;
+        } else {
+            position++;
+        }
+
+        const senderDisplay = doc.sender
+            ? (doc.sender.name ? `${doc.sender.name} <${doc.sender.email || ''}>` : (doc.sender.email || ''))
+            : '';
+
+        const attachments = Array.isArray(doc.attachments) ? doc.attachments : [];
+        const filenames = attachments.map(a => a.filename).filter(Boolean).join('; ');
+        const authSuffix = googleId ? `?googleId=${encodeURIComponent(googleId)}` : '';
+        const links = attachments
+            .filter(a => a.attachmentId)
+            .map(a => `${baseUrl}/api/gmail/emails/${encodeURIComponent(doc.messageId)}/attachments/${encodeURIComponent(a.attachmentId)}${authSuffix}`)
+            .join('; ');
+
+        const row = [
+            doc.threadId,
+            position,
+            doc.folder === 'sent' ? 'sent' : 'received',
+            deriveCategory(doc.labels),
+            senderDisplay,
+            doc.receiver || '',
+            doc.cc || '',
+            doc.bcc || '',
+            doc.date ? new Date(doc.date).toISOString() : '',
+            doc.subject || '',
+            doc.body || '',
+            filenames,
+            links
+        ].map(escapeCsvField).join(',');
+
+        res.write(row + '\n');
+    }
+
+    res.end();
+};
+
+/**
+ * Fetch a single Gmail attachment. Returns { filename, mimeType, buffer }.
+ */
+const getAttachment = async (googleId, messageId, attachmentId) => {
+    const email = await Email.findOne({ messageId, googleId }).lean();
+    const meta = email && Array.isArray(email.attachments)
+        ? email.attachments.find(a => a.attachmentId === attachmentId)
+        : null;
+
+    const gmail = await getGmailClient(googleId);
+    const response = await gmail.users.messages.attachments.get({
+        userId: 'me',
+        messageId,
+        id: attachmentId
+    });
+
+    const data = response.data.data || '';
+    const buffer = Buffer.from(data.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
+
+    return {
+        filename: meta ? meta.filename : 'attachment',
+        mimeType: meta ? meta.mimeType : 'application/octet-stream',
+        buffer
+    };
+};
+
 module.exports = {
     getEmails,
     getEmailById,
@@ -727,5 +866,7 @@ module.exports = {
     deleteEmail,
     replyToEmail,
     watchInbox,
-    syncUserEmails
+    syncUserEmails,
+    exportEmailsCsv,
+    getAttachment
 };

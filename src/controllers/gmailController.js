@@ -1,4 +1,4 @@
-const { getEmails, getEmailById, getThreadById, sendEmail, modifyEmail, deleteEmail, replyToEmail, watchInbox, syncUserEmails } = require('../services/gmailService');
+const { getEmails, getEmailById, getThreadById, sendEmail, modifyEmail, deleteEmail, replyToEmail, watchInbox, syncUserEmails, exportEmailsCsv, getAttachment } = require('../services/gmailService');
 const User = require('../models/User');
 const socketService = require('../services/socketService');
 
@@ -271,6 +271,75 @@ const gmailController = {
             console.error('Error in handleWebhook:', error);
             // Still return 204 to avoid infinite retries from Pub/Sub
             res.status(204).send();
+        }
+    },
+
+    /**
+     * GET /api/gmail/export/csv
+     * Stream a CSV export of emails filtered by days (7/30/90/365) and direction (sent/received/both).
+     */
+    exportCsv: async (req, res) => {
+        const googleId = req.headers['x-google-id'] || req.query.googleId;
+        const orgId = req.headers['x-org-id'] || req.query.orgId;
+
+        if (!googleId && !orgId) {
+            return res.status(401).json({ error: 'Unauthorized: Missing googleId or orgId' });
+        }
+
+        const allowedDays = [7, 30, 90, 365];
+        const days = parseInt(req.query.days, 10);
+        if (!allowedDays.includes(days)) {
+            return res.status(400).json({ error: 'Invalid "days" — must be 7, 30, 90, or 365' });
+        }
+
+        const allowedDirections = ['sent', 'received', 'both'];
+        const direction = (req.query.direction || 'both').toLowerCase();
+        if (!allowedDirections.includes(direction)) {
+            return res.status(400).json({ error: 'Invalid "direction" — must be sent, received, or both' });
+        }
+
+        const baseUrl = `${req.protocol}://${req.get('host')}`;
+        const filename = `emails-${direction}-${days}d-${new Date().toISOString().split('T')[0]}.csv`;
+
+        try {
+            res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+            res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+            await exportEmailsCsv(res, { googleId, orgId, days, direction, baseUrl });
+        } catch (error) {
+            console.error('Error in exportCsv controller:', error);
+            // If headers already sent, we can only end the response mid-stream.
+            if (res.headersSent) {
+                res.end();
+            } else {
+                res.status(500).json({ error: 'Failed to export emails' });
+            }
+        }
+    },
+
+    /**
+     * GET /api/gmail/emails/:messageId/attachments/:attachmentId
+     * Proxy an attachment download from Gmail.
+     */
+    downloadAttachment: async (req, res) => {
+        const googleId = req.headers['x-google-id'] || req.query.googleId;
+        const { messageId, attachmentId } = req.params;
+
+        if (!googleId) {
+            return res.status(401).json({ error: 'Unauthorized: Missing googleId' });
+        }
+        if (!messageId || !attachmentId) {
+            return res.status(400).json({ error: 'Missing messageId or attachmentId' });
+        }
+
+        try {
+            const { filename, mimeType, buffer } = await getAttachment(googleId, messageId, attachmentId);
+            res.setHeader('Content-Type', mimeType);
+            res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
+            res.setHeader('Content-Length', buffer.length);
+            res.end(buffer);
+        } catch (error) {
+            console.error('Error in downloadAttachment controller:', error);
+            res.status(500).json({ error: 'Failed to fetch attachment' });
         }
     }
 };

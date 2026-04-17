@@ -45,6 +45,27 @@ export const deleteEmail = (id) =>
 export const syncEmails = () =>
   api.post('/api/gmail/sync');
 
+// CSV export — triggers a browser download
+export const exportEmailsCsv = async ({ days, direction }) => {
+  const response = await api.get('/api/gmail/export/csv', {
+    params: { days, direction },
+    responseType: 'blob',
+  });
+
+  const disposition = response.headers['content-disposition'] || '';
+  const match = disposition.match(/filename="?([^"]+)"?/);
+  const filename = match ? match[1] : `emails-${direction}-${days}d.csv`;
+
+  const url = window.URL.createObjectURL(new Blob([response.data], { type: 'text/csv' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+};
+
 // AI
 export const generateAIReply = (emailContext, tone) =>
   api.post('/api/ai/generate-reply', { emailContext, tone });
